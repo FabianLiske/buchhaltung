@@ -1,3 +1,5 @@
 /docs/notes.md
 /docs/technisches-design.md
 /build/
+*.sqlite
+*.sqlite-*
