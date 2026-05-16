@@ -13,6 +13,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(SQLite3 REQUIRED)
 
+add_library(nlohmann_json INTERFACE)
+target_include_directories(nlohmann_json SYSTEM INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann_json/include
+)
+
 add_executable(buch
     src/db/Database.cpp
     src/db/Migrations.cpp
@@ -20,7 +25,10 @@ add_executable(buch
 )
 
 target_compile_features(buch PRIVATE cxx_std_23)
-target_link_libraries(buch PRIVATE SQLite3::SQLite3)
+target_link_libraries(buch PRIVATE
+    SQLite3::SQLite3
+    nlohmann_json
+)
 
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(buch PRIVATE
