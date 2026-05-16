@@ -1,8 +1,10 @@
 #include "db/Database.hpp"
 #include "db/Migrations.hpp"
 #include "lookup/GoogleBooksLookup.hpp"
+#include "tui/LookupTui.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <fstream>
 #include <filesystem>
@@ -26,10 +28,12 @@ void print_help() {
         << "  buch --version\n"
         << "  buch [--db <path>] init\n"
         << "  buch lookup-isbn [isbn]\n"
+        << "  buch tui\n"
         << '\n'
         << "Commands:\n"
         << "  init          Datenbank anlegen und Migrationen ausführen\n"
-        << "  lookup-isbn   Buchdaten über Google Books abrufen und anzeigen\n";
+        << "  lookup-isbn   Buchdaten über Google Books abrufen und anzeigen\n"
+        << "  tui           Interaktive ISBN-Eingabe starten\n";
 }
 
 std::filesystem::path default_database_path() {
@@ -233,6 +237,14 @@ int run_lookup_isbn(const std::vector<std::string>& command_args) {
     return 0;
 }
 
+int run_tui(const std::vector<std::string>& command_args) {
+    if (!command_args.empty()) {
+        throw std::runtime_error("tui does not accept arguments yet.");
+    }
+
+    return buch::tui::run_lookup_tui(google_books_api_key());
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -264,6 +276,10 @@ int main(int argc, char** argv) {
 
         if (args.command == "lookup-isbn") {
             return run_lookup_isbn(args.command_args);
+        }
+
+        if (args.command == "tui") {
+            return run_tui(args.command_args);
         }
 
         std::cerr << "Unbekannter Befehl: " << *args.command << '\n';

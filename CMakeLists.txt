@@ -11,6 +11,15 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(FetchContent)
+
+FetchContent_Declare(
+    ftxui
+    GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI
+    GIT_TAG v6.1.9
+)
+FetchContent_MakeAvailable(ftxui)
+
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
 
@@ -23,13 +32,20 @@ add_executable(buch
     src/db/Database.cpp
     src/db/Migrations.cpp
     src/lookup/GoogleBooksLookup.cpp
+    src/tui/LookupTui.cpp
     src/main.cpp
 )
 
 target_compile_features(buch PRIVATE cxx_std_23)
+target_include_directories(buch PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 target_link_libraries(buch PRIVATE
     CURL::libcurl
     SQLite3::SQLite3
+    ftxui::component
+    ftxui::dom
+    ftxui::screen
     nlohmann_json
 )
 
