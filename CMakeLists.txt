@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(SQLite3 REQUIRED)
+find_package(CURL REQUIRED)
 
 add_library(nlohmann_json INTERFACE)
 target_include_directories(nlohmann_json SYSTEM INTERFACE
@@ -21,11 +22,13 @@ target_include_directories(nlohmann_json SYSTEM INTERFACE
 add_executable(buch
     src/db/Database.cpp
     src/db/Migrations.cpp
+    src/lookup/GoogleBooksLookup.cpp
     src/main.cpp
 )
 
 target_compile_features(buch PRIVATE cxx_std_23)
 target_link_libraries(buch PRIVATE
+    CURL::libcurl
     SQLite3::SQLite3
     nlohmann_json
 )
