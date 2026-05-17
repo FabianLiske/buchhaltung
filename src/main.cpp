@@ -28,7 +28,7 @@ void print_help() {
         << "  buch --version\n"
         << "  buch [--db <path>] init\n"
         << "  buch lookup-isbn [isbn]\n"
-        << "  buch tui\n"
+        << "  buch [--db <path>] tui\n"
         << '\n'
         << "Commands:\n"
         << "  init          Datenbank anlegen und Migrationen ausführen\n"
@@ -220,7 +220,7 @@ int run_lookup_isbn(const std::vector<std::string>& command_args) {
     std::cout << "Google Volume ID: " << (result.google_volume_id.empty() ? "-" : result.google_volume_id) << '\n';
     print_optional_field("Titel", result.title);
     print_optional_field("Untertitel", result.subtitle);
-    print_list_field("Autor:innen", result.authors);
+    print_list_field("Autoren", result.authors);
     print_optional_field("Verlag", result.publisher);
     print_optional_field("Erscheinungsdatum", result.published_date);
     print_optional_field("Sprache", result.language);
@@ -237,12 +237,13 @@ int run_lookup_isbn(const std::vector<std::string>& command_args) {
     return 0;
 }
 
-int run_tui(const std::vector<std::string>& command_args) {
+int run_tui(const std::vector<std::string>& command_args, const std::filesystem::path& database_path) {
     if (!command_args.empty()) {
         throw std::runtime_error("tui does not accept arguments yet.");
     }
 
-    return buch::tui::run_lookup_tui(google_books_api_key());
+    ensure_parent_directory(database_path);
+    return buch::tui::run_lookup_tui(google_books_api_key(), database_path);
 }
 
 } // namespace
@@ -279,7 +280,8 @@ int main(int argc, char** argv) {
         }
 
         if (args.command == "tui") {
-            return run_tui(args.command_args);
+            const auto database_path = args.database_path.value_or(default_database_path());
+            return run_tui(args.command_args, database_path);
         }
 
         std::cerr << "Unbekannter Befehl: " << *args.command << '\n';

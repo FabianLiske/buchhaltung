@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.28)
 project(
     buchhaltung
     VERSION 0.1.0
-    DESCRIPTION "Lokale Terminal-Anwendung zur Verwaltung einer Buechersammlung"
+    DESCRIPTION "Lokale Terminal-Anwendung zur Verwaltung einer Büchersammlung"
     LANGUAGES CXX
 )
 
@@ -32,6 +32,7 @@ add_executable(buch
     src/db/Database.cpp
     src/db/Migrations.cpp
     src/lookup/GoogleBooksLookup.cpp
+    src/services/BookImportService.cpp
     src/tui/LookupTui.cpp
     src/main.cpp
 )
