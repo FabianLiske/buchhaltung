@@ -1,6 +1,7 @@
 #include "db/Database.hpp"
 #include "db/Migrations.hpp"
 #include "lookup/GoogleBooksLookup.hpp"
+#include "tui/MainTui.hpp"
 #include "tui/add_book/AddBookTui.hpp"
 
 #include <algorithm>
@@ -35,7 +36,7 @@ void print_help() {
         << "  init          Datenbank anlegen und Migrationen ausführen\n"
         << "  reset         Datenbank zurücksetzen\n"
         << "  lookup-isbn   Buchdaten über Google Books abrufen und anzeigen\n"
-        << "  tui           Interaktive ISBN-Eingabe starten\n";
+        << "  tui           Interaktive Buchhaltungs-Oberfläche starten\n";
 }
 
 std::filesystem::path default_database_path() {
@@ -259,7 +260,12 @@ int run_tui(const std::vector<std::string>& command_args, const std::filesystem:
     }
 
     ensure_parent_directory(database_path);
-    return buch::tui::add_book::run(google_books_api_key(), database_path);
+    const auto action = buch::tui::run_main_tui();
+    if (action == buch::tui::MainMenuAction::AddBook) {
+        return buch::tui::add_book::run(google_books_api_key(), database_path);
+    }
+
+    return 0;
 }
 
 } // namespace
