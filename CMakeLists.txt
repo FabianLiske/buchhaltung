@@ -33,8 +33,10 @@ add_executable(buch
     src/db/Migrations.cpp
     src/lookup/GoogleBooksLookup.cpp
     src/services/BookImportService.cpp
+    src/services/LibraryBrowseService.cpp
     src/tui/MainTui.cpp
     src/tui/add_book/AddBookTui.cpp
+    src/tui/browse_books/BrowseBooksTui.cpp
     src/main.cpp
 )
 

@@ -3,6 +3,7 @@
 #include "lookup/GoogleBooksLookup.hpp"
 #include "tui/MainTui.hpp"
 #include "tui/add_book/AddBookTui.hpp"
+#include "tui/browse_books/BrowseBooksTui.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -284,6 +285,20 @@ int run_tui(const std::vector<std::string>& command_args, const std::filesystem:
             }
 
             if (result == buch::tui::add_book::Result::BackToMainMenu) {
+                continue;
+            }
+        }
+
+        if (action == buch::tui::MainMenuAction::BrowseBooks) {
+            clear_terminal_screen();
+
+            const auto result = buch::tui::browse_books::run(database_path);
+
+            if (result == buch::tui::browse_books::Result::Quit) {
+                return 0;
+            }
+
+            if (result == buch::tui::browse_books::Result::BackToMainMenu) {
                 continue;
             }
         }

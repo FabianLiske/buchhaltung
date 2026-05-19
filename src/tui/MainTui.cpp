@@ -21,6 +21,11 @@ MainMenuAction run_main_tui() {
         exit();
     });
 
+    auto browse_books_button = Button("Werke browsen", [&] {
+        action = MainMenuAction::BrowseBooks;
+        exit();
+    });
+
     auto quit_button = Button("Beenden", [&] {
         action = MainMenuAction::Quit;
         exit();
@@ -28,6 +33,7 @@ MainMenuAction run_main_tui() {
 
     auto menu = Container::Vertical({
         add_book_button,
+        browse_books_button,
         quit_button,
     });
 
@@ -38,6 +44,7 @@ MainMenuAction run_main_tui() {
             text("Hauptmenü") | center,
             separator(),
             add_book_button->Render() | center,
+            browse_books_button->Render() | center,
             quit_button->Render() | center,
         }) | border;
     });
