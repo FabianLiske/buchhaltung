@@ -5,6 +5,11 @@
 
 namespace buch::tui::add_book {
 
-int run(const std::string& google_books_api_key, const std::filesystem::path& database_path);
+enum class Result {
+    BackToMainMenu,
+    Quit,
+};
+
+Result run(const std::string& google_books_api_key, const std::filesystem::path& database_path);
 
 } // namespace buch::tui::add_book

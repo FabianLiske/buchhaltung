@@ -264,15 +264,30 @@ int run_tui(const std::vector<std::string>& command_args, const std::filesystem:
     }
 
     ensure_parent_directory(database_path);
-    clear_terminal_screen();
-    const auto action = buch::tui::run_main_tui();
-    if (action == buch::tui::MainMenuAction::AddBook) {
-        const auto api_key = google_books_api_key();
+    while (true) {
         clear_terminal_screen();
-        return buch::tui::add_book::run(api_key, database_path);
-    }
+        const auto action = buch::tui::run_main_tui();
 
-    return 0;
+        if (action == buch::tui::MainMenuAction::Quit) {
+            return 0;
+        }
+
+        if (action == buch::tui::MainMenuAction::AddBook) {
+            const auto api_key = google_books_api_key();
+
+            clear_terminal_screen();
+
+            const auto result = buch::tui::add_book::run(api_key, database_path);
+
+            if (result == buch::tui::add_book::Result::Quit) {
+                return 0;
+            }
+
+            if (result == buch::tui::add_book::Result::BackToMainMenu) {
+                continue;
+            }
+        }
+    }
 }
 
 } // namespace

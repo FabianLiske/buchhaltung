@@ -70,12 +70,14 @@ std::string work_option_label(const services::WorkSuggestion& suggestion) {
 
 } // namespace
 
-int run(const std::string& google_books_api_key, const std::filesystem::path& database_path) {
+Result run(const std::string& google_books_api_key, const std::filesystem::path& database_path) {
     db::Database database{database_path};
     db::apply_migrations(database);
     services::BookImportService import_service{database};
 
     auto screen = ScreenInteractive::TerminalOutput();
+    auto result = Result::Quit;
+    auto exit = screen.ExitLoopClosure();
 
     int tab_index = 0;
     std::vector<std::string> tabs = {
@@ -401,14 +403,22 @@ int run(const std::string& google_books_api_key, const std::filesystem::path& da
 
     auto search_button = Button("Lookup", run_lookup);
     auto save_button = Button("Speichern", save_import);
-    auto quit_button = Button("Beenden", screen.ExitLoopClosure());
+    auto quit_button = Button("Beenden", [&] {
+        result = Result::Quit;
+        exit();
+    });
     auto next_button = Button("Weiter", [&] {
         if (tab_index + 1 < static_cast<int>(tabs.size())) {
             ++tab_index;
         }
     });
     auto previous_button = Button("Zurück", [&] {
-        if (tab_index > 0) {
+        if (tab_index == 0) {
+            result = Result::BackToMainMenu;
+            exit();
+            return;
+        }
+        else if (tab_index > 0) {
             --tab_index;
         }
     });
@@ -658,7 +668,7 @@ int run(const std::string& google_books_api_key, const std::filesystem::path& da
     });
 
     screen.Loop(renderer);
-    return 0;
+    return result;
 }
 
 } // namespace buch::tui::add_book
