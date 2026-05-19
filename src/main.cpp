@@ -62,6 +62,10 @@ void ensure_parent_directory(const std::filesystem::path& database_path) {
     }
 }
 
+void clear_terminal_screen() {
+    std::cout << "\033[2J\033[H" << std::flush;
+}
+
 struct Args {
     std::optional<std::filesystem::path> database_path;
     std::optional<std::string> command;
@@ -260,9 +264,12 @@ int run_tui(const std::vector<std::string>& command_args, const std::filesystem:
     }
 
     ensure_parent_directory(database_path);
+    clear_terminal_screen();
     const auto action = buch::tui::run_main_tui();
     if (action == buch::tui::MainMenuAction::AddBook) {
-        return buch::tui::add_book::run(google_books_api_key(), database_path);
+        const auto api_key = google_books_api_key();
+        clear_terminal_screen();
+        return buch::tui::add_book::run(api_key, database_path);
     }
 
     return 0;
