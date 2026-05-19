@@ -1,4 +1,4 @@
-#include "LookupTui.hpp"
+#include "tui/add_book/AddBookTui.hpp"
 
 #include "db/Database.hpp"
 #include "db/Migrations.hpp"
@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 
-namespace buch::tui {
+namespace buch::tui::add_book {
 namespace {
 
 using namespace ftxui;
@@ -70,7 +70,7 @@ std::string work_option_label(const services::WorkSuggestion& suggestion) {
 
 } // namespace
 
-int run_lookup_tui(const std::string& google_books_api_key, const std::filesystem::path& database_path) {
+int run(const std::string& google_books_api_key, const std::filesystem::path& database_path) {
     db::Database database{database_path};
     db::apply_migrations(database);
     services::BookImportService import_service{database};
@@ -661,4 +661,4 @@ int run_lookup_tui(const std::string& google_books_api_key, const std::filesyste
     return 0;
 }
 
-} // namespace buch::tui
+} // namespace buch::tui::add_book

@@ -1,7 +1,7 @@
 #include "db/Database.hpp"
 #include "db/Migrations.hpp"
 #include "lookup/GoogleBooksLookup.hpp"
-#include "tui/LookupTui.hpp"
+#include "tui/add_book/AddBookTui.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -259,7 +259,7 @@ int run_tui(const std::vector<std::string>& command_args, const std::filesystem:
     }
 
     ensure_parent_directory(database_path);
-    return buch::tui::run_lookup_tui(google_books_api_key(), database_path);
+    return buch::tui::add_book::run(google_books_api_key(), database_path);
 }
 
 } // namespace
