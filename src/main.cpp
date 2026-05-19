@@ -27,11 +27,13 @@ void print_help() {
         << "  buch --help\n"
         << "  buch --version\n"
         << "  buch [--db <path>] init\n"
+        << "  buch [--db <path>] reset\n"
         << "  buch lookup-isbn [isbn]\n"
         << "  buch [--db <path>] tui\n"
         << '\n'
         << "Commands:\n"
         << "  init          Datenbank anlegen und Migrationen ausführen\n"
+        << "  reset         Datenbank zurücksetzen\n"
         << "  lookup-isbn   Buchdaten über Google Books abrufen und anzeigen\n"
         << "  tui           Interaktive ISBN-Eingabe starten\n";
 }
@@ -210,6 +212,20 @@ int run_init(const std::filesystem::path& database_path) {
     return 0;
 }
 
+int run_reset(const std::filesystem::path& database_path) {
+    ensure_parent_directory(database_path);
+
+    if (database_path != ":memory:" && std::filesystem::exists(database_path)) {
+        std::filesystem::remove(database_path);
+    }
+
+    const buch::db::Database database{database_path};
+    buch::db::apply_migrations(database);
+
+    std::cout << "Datenbank wurde zurückgesetzt: " << database_path << "\n";
+    return 0;
+}
+
 int run_lookup_isbn(const std::vector<std::string>& command_args) {
     const auto isbn = isbn_from_args_or_prompt(command_args);
     const auto api_key = google_books_api_key();
@@ -273,6 +289,11 @@ int main(int argc, char** argv) {
         if (args.command == "init") {
             const auto database_path = args.database_path.value_or(default_database_path());
             return run_init(database_path);
+        }
+
+        if (args.command == "reset") {
+            const auto database_path = args.database_path.value_or(default_database_path());
+            return run_reset(database_path);
         }
 
         if (args.command == "lookup-isbn") {
