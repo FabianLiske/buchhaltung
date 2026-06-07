@@ -1,5 +1,16 @@
 cmake_minimum_required(VERSION 3.28)
 
+file(REAL_PATH "${CMAKE_SOURCE_DIR}" SOURCE_DIR_REAL)
+file(REAL_PATH "${CMAKE_BINARY_DIR}" BINARY_DIR_REAL)
+string(FIND "${BINARY_DIR_REAL}/" "${SOURCE_DIR_REAL}/" BUILD_INSIDE_SOURCE_TREE)
+if(BUILD_INSIDE_SOURCE_TREE EQUAL 0)
+    message(FATAL_ERROR
+        "Build-Verzeichnis liegt innerhalb des Source-Trees. "
+        "Bitte lokal ausserhalb des Repos bauen, z.B.: "
+        "cmake --preset local"
+    )
+endif()
+
 project(
     buchhaltung
     VERSION 0.1.0

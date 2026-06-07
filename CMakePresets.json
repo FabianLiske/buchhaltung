@@ -1,0 +1,34 @@
+{
+  "version": 8,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "local",
+      "displayName": "Local out-of-repo build",
+      "description": "Keeps all generated build artifacts under ~/build/buchhaltung.",
+      "binaryDir": "$env{HOME}/build/${sourceDirName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "local",
+      "configurePreset": "local"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "local",
+      "configurePreset": "local",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
