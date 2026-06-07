@@ -55,6 +55,9 @@ target_compile_features(buch PRIVATE cxx_std_23)
 target_include_directories(buch PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_compile_definitions(buch PRIVATE
+    BUCH_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
 target_link_libraries(buch PRIVATE
     CURL::libcurl
     SQLite3::SQLite3

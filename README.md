@@ -39,6 +39,12 @@ Das erzeugte Programm liegt danach unter:
 "$HOME/build/buchhaltung/buch"
 ```
 
+## Umgebung
+
+Die Anwendung liest `GOOGLE_BOOKS_KEY` zuerst aus der Prozessumgebung und
+danach aus einer `.env`-Datei. Beim lokalen Out-of-Repo-Build wird sowohl im
+aktuellen Arbeitsverzeichnis als auch im Source-Repository gesucht.
+
 Direkte CMake-Variante ohne Preset:
 
 ```sh

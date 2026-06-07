@@ -114,8 +114,8 @@ std::string trim(std::string value) {
     return value;
 }
 
-std::optional<std::string> read_env_file_value(std::string_view key) {
-    std::ifstream env_file{".env"};
+std::optional<std::string> read_env_file_value_from(const std::filesystem::path& path, std::string_view key) {
+    std::ifstream env_file{path};
     if (!env_file) {
         return std::nullopt;
     }
@@ -143,6 +143,21 @@ std::optional<std::string> read_env_file_value(std::string_view key) {
         }
 
         return value;
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::string> read_env_file_value(std::string_view key) {
+    const std::vector<std::filesystem::path> env_paths{
+        std::filesystem::current_path() / ".env",
+        std::filesystem::path{BUCH_SOURCE_DIR} / ".env",
+    };
+
+    for (const auto& env_path : env_paths) {
+        if (const auto value = read_env_file_value_from(env_path, key); value.has_value()) {
+            return value;
+        }
     }
 
     return std::nullopt;
