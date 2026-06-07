@@ -10,6 +10,7 @@
 #include <ftxui/dom/elements.hpp>
 
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -75,7 +76,7 @@ Result run(const std::string& google_books_api_key, const std::filesystem::path&
     db::apply_migrations(database);
     services::BookImportService import_service{database};
 
-    auto screen = ScreenInteractive::TerminalOutput();
+    auto screen = ScreenInteractive::Fullscreen();
     auto result = Result::Quit;
     auto exit = screen.ExitLoopClosure();
 
@@ -199,7 +200,92 @@ Result run(const std::string& google_books_api_key, const std::filesystem::path&
 
     reload_series_options();
 
-    auto isbn_input = Input(&isbn, "978...");
+    const auto clear_form = [&] {
+        tab_index = 0;
+        edition_exists = false;
+        existing_edition_work_id.clear();
+        existing_edition_summary.clear();
+
+        isbn.clear();
+        google_volume_id.clear();
+        title.clear();
+        subtitle.clear();
+        authors.clear();
+        edition_contributors.clear();
+        publisher.clear();
+        published_date.clear();
+        language.clear();
+        edition_name.clear();
+        edition_format.clear();
+        isbn_10.clear();
+        isbn_13.clear();
+        page_count.clear();
+        edition_notes.clear();
+        categories.clear();
+        maturity_rating.clear();
+        cover_url.clear();
+        info_link.clear();
+        canonical_link.clear();
+        description.clear();
+
+        canonical_title.clear();
+        original_title.clear();
+        original_language_code.clear();
+        work_notes.clear();
+
+        selected_work = 0;
+        work_options = {"Neues Werk anlegen"};
+        work_ids = {""};
+
+        selected_series = 0;
+        new_series_name.clear();
+        series_original_title.clear();
+        series_description.clear();
+        series_notes.clear();
+        series_season.clear();
+        series_position.clear();
+        series_position_label.clear();
+        work_series_notes.clear();
+
+        parent_genre.clear();
+        genre.clear();
+        genre_description.clear();
+        genre_notes.clear();
+        selected_reading_status = 0;
+        reading_started_date.clear();
+        reading_finished_date.clear();
+        rating.clear();
+        reading_notes.clear();
+
+        location_path.clear();
+        location_description.clear();
+        location_notes.clear();
+        location_visual_x.clear();
+        location_visual_y.clear();
+        location_visual_z.clear();
+        location_visual_width.clear();
+        location_visual_height.clear();
+        location_visual_depth.clear();
+        position_in_location.clear();
+        condition.clear();
+        acquired_date.clear();
+        acquired_where.clear();
+        borrowed_from.clear();
+        lent_to.clear();
+        copy_notes.clear();
+
+        reload_series_options();
+    };
+
+    std::function<void()> lookup_action;
+    auto isbn_input_option = InputOption::Default();
+    isbn_input_option.multiline = false;
+    isbn_input_option.on_enter = [&] {
+        if (lookup_action) {
+            lookup_action();
+        }
+    };
+    auto isbn_input = Input(&isbn, "978...", isbn_input_option);
     auto title_input = Input(&title, "Titel");
     auto subtitle_input = Input(&subtitle, "Untertitel");
     auto authors_input = Input(&authors, "Autoren, getrennt mit Komma");
@@ -386,16 +472,14 @@ Result run(const std::string& google_books_api_key, const std::filesystem::path&
             status = std::string{"Lookup fehlgeschlagen: "} + error.what();
         }
     };
+    lookup_action = run_lookup;
 
     auto save_import = [&] {
         try {
             const auto result = import_service.save_import(make_request());
-            status = "Gespeichert. Work: " + result.work_id + " / Copy: " + result.copy_id;
-            edition_exists = true;
-            existing_edition_work_id = result.work_id;
-            isbn = result.edition_isbn;
-            isbn_13 = result.edition_isbn;
-            tab_index = 6;
+            const auto saved_status = "Gespeichert. Work: " + result.work_id + " / Copy: " + result.copy_id + ". Maske wurde geleert.";
+            clear_form();
+            status = saved_status;
         } catch (const std::exception& error) {
             status = std::string{"Speichern fehlgeschlagen: "} + error.what();
         }

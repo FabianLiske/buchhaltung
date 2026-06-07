@@ -12,7 +12,7 @@ using namespace ftxui;
 } // namespace
 
 MainMenuAction run_main_tui() {
-    auto screen = ScreenInteractive::TerminalOutput();
+    auto screen = ScreenInteractive::Fullscreen();
     auto action = MainMenuAction::Quit;
     auto exit = screen.ExitLoopClosure();
 
@@ -41,11 +41,16 @@ MainMenuAction run_main_tui() {
         return vbox({
             text("Buchhaltung") | bold | center,
             separator(),
-            text("Hauptmenü") | center,
+            vbox({
+                filler(),
+                text("Hauptmenü") | center,
+                separator(),
+                add_book_button->Render() | center,
+                browse_books_button->Render() | center,
+                quit_button->Render() | center,
+                filler(),
+            }) | flex,
             separator(),
-            add_book_button->Render() | center,
-            browse_books_button->Render() | center,
-            quit_button->Render() | center,
         }) | border;
     });
 
