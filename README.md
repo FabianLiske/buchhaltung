@@ -82,23 +82,29 @@ Die API spricht JSON.
 ```text
 GET    /healthz
 GET    /api/works?text=&author=&series=&reading_status=
+POST   /api/works
 GET    /api/works/{id}
 GET    /api/works/{id}/editions
+POST   /api/works/{id}/editions
 PUT    /api/works/{id}
 DELETE /api/works/{id}
 
+POST   /api/editions
 GET    /api/editions/{isbn}
 GET    /api/editions/{isbn}/copies
+POST   /api/editions/{isbn}/copies
 PUT    /api/editions/{isbn}
 DELETE /api/editions/{isbn}
 
+POST   /api/copies
 GET    /api/copies/{id}
 PUT    /api/copies/{id}
 DELETE /api/copies/{id}
 
 GET    /api/series
-GET    /api/editions/by-isbn/{isbn}
-GET    /api/work-suggestions?authors=Name1,Name2
 GET    /api/lookup/isbn/{isbn}
-POST   /api/imports
 ```
+
+Der Google-Lookup schreibt nichts in die Datenbank. Clients koennen die
+zurueckgegebenen Daten verwenden, muessen Werke, Editionen und Exemplare aber
+selbst ueber die direkten `POST`-Endpunkte anlegen.

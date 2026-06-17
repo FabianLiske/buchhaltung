@@ -536,6 +536,15 @@ std::vector<CopyListItem> LibraryBrowseService::list_copies_for_edition(const st
     return result;
 }
 
+std::vector<SeriesOption> LibraryBrowseService::list_series() const {
+    std::vector<SeriesOption> result;
+    Statement statement{database_.handle(), "SELECT id, name FROM series ORDER BY lower(name);"};
+    while (statement.step_row()) {
+        result.push_back({statement.text(0), statement.text(1)});
+    }
+    return result;
+}
+
 std::optional<WorkDetails> LibraryBrowseService::get_work(const std::string& work_id) const {
     Statement statement{database_.handle(), R"sql(
 SELECT
@@ -611,6 +620,46 @@ FROM (
     return details;
 }
 
+WorkDetails LibraryBrowseService::create_work(const WorkCreate& create) const {
+    if (trim_copy(create.canonical_title).empty()) {
+        throw std::runtime_error("Werk-Titel fehlt.");
+    }
+
+    const auto work_id = random_uuid();
+
+    try {
+        database_.execute("BEGIN;");
+        Statement statement{database_.handle(), R"sql(
+INSERT INTO works (
+    id,
+    canonical_title,
+    original_title,
+    original_language_code,
+    first_published_year,
+    description,
+    age_rating,
+    notes
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+)sql"};
+        statement.bind(1, work_id);
+        statement.bind(2, trim_copy(create.canonical_title));
+        statement.bind_optional(3, empty_to_null(create.original_title));
+        statement.bind_optional(4, empty_to_null(create.original_language_code));
+        statement.bind_optional_int(5, create.first_published_year);
+        statement.bind_optional(6, empty_to_null(create.description));
+        statement.bind_optional(7, empty_to_null(create.age_rating));
+        statement.bind_optional(8, empty_to_null(create.notes));
+        statement.execute_done();
+        replace_authors(database_.handle(), work_id, create.authors);
+        database_.execute("COMMIT;");
+    } catch (...) {
+        database_.execute("ROLLBACK;");
+        throw;
+    }
+
+    return *get_work(work_id);
+}
+
 std::optional<EditionDetails> LibraryBrowseService::get_edition(const std::string& isbn) const {
     Statement statement{database_.handle(), R"sql(
 SELECT
@@ -649,6 +698,53 @@ LIMIT 1;
     return details;
 }
 
+EditionDetails LibraryBrowseService::create_edition(const EditionCreate& create) const {
+    if (trim_copy(create.isbn).empty()) {
+        throw std::runtime_error("ISBN fehlt.");
+    }
+    if (trim_copy(create.work_id).empty()) {
+        throw std::runtime_error("Werk-ID fehlt.");
+    }
+    if (trim_copy(create.title).empty()) {
+        throw std::runtime_error("Editionstitel fehlt.");
+    }
+    if (trim_copy(create.language_code).empty()) {
+        throw std::runtime_error("Sprache fehlt.");
+    }
+
+    Statement statement{database_.handle(), R"sql(
+INSERT INTO editions (
+    isbn,
+    work_id,
+    title,
+    subtitle,
+    language_code,
+    publisher,
+    publication_year,
+    edition_name,
+    format,
+    page_count,
+    cover_url,
+    notes
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+)sql"};
+    statement.bind(1, trim_copy(create.isbn));
+    statement.bind(2, create.work_id);
+    statement.bind(3, trim_copy(create.title));
+    statement.bind_optional(4, empty_to_null(create.subtitle));
+    statement.bind(5, trim_copy(create.language_code));
+    statement.bind_optional(6, empty_to_null(create.publisher));
+    statement.bind_optional_int(7, create.publication_year);
+    statement.bind_optional(8, empty_to_null(create.edition_name));
+    statement.bind_optional(9, empty_to_null(create.format));
+    statement.bind_optional_int(10, create.page_count);
+    statement.bind_optional(11, empty_to_null(create.cover_url));
+    statement.bind_optional(12, empty_to_null(create.notes));
+    statement.execute_done();
+
+    return *get_edition(trim_copy(create.isbn));
+}
+
 std::optional<CopyDetails> LibraryBrowseService::get_copy(const std::string& copy_id) const {
     Statement statement{database_.handle(), R"sql(
 SELECT
@@ -683,6 +779,50 @@ LIMIT 1;
     details.lent_to = statement.optional_text(8);
     details.notes = statement.optional_text(9);
     return details;
+}
+
+CopyDetails LibraryBrowseService::create_copy(const CopyCreate& create) const {
+    if (trim_copy(create.edition_isbn).empty()) {
+        throw std::runtime_error("Edition-ISBN fehlt.");
+    }
+
+    const auto copy_id = random_uuid();
+
+    try {
+        database_.execute("BEGIN;");
+        const auto location_id = upsert_location_path(database_.handle(), create.location_path);
+        Statement statement{database_.handle(), R"sql(
+INSERT INTO copies (
+    id,
+    edition_isbn,
+    location_id,
+    position_in_location,
+    acquired_date,
+    acquired_where,
+    condition,
+    borrowed_from,
+    lent_to,
+    notes
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+)sql"};
+        statement.bind(1, copy_id);
+        statement.bind(2, trim_copy(create.edition_isbn));
+        statement.bind_optional(3, location_id);
+        statement.bind_optional_int(4, create.position_in_location);
+        statement.bind_optional(5, empty_to_null(create.acquired_date));
+        statement.bind_optional(6, empty_to_null(create.acquired_where));
+        statement.bind_optional(7, empty_to_null(create.condition));
+        statement.bind_optional(8, empty_to_null(create.borrowed_from));
+        statement.bind_optional(9, empty_to_null(create.lent_to));
+        statement.bind_optional(10, empty_to_null(create.notes));
+        statement.execute_done();
+        database_.execute("COMMIT;");
+    } catch (...) {
+        database_.execute("ROLLBACK;");
+        throw;
+    }
+
+    return *get_copy(copy_id);
 }
 
 void LibraryBrowseService::update_work(const WorkUpdate& update) const {
