@@ -1,0 +1,7 @@
+.git
+.cache
+build
+cmake-build-*
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal

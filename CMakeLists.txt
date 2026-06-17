@@ -14,7 +14,7 @@ endif()
 project(
     buchhaltung
     VERSION 0.1.0
-    DESCRIPTION "Lokale Terminal-Anwendung zur Verwaltung einer Büchersammlung"
+    DESCRIPTION "Backend-Service zur Verwaltung einer Büchersammlung"
     LANGUAGES CXX
 )
 
@@ -25,14 +25,27 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(FetchContent)
 
 FetchContent_Declare(
-    ftxui
-    GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI
-    GIT_TAG v6.1.9
+    cpp_httplib
+    GIT_REPOSITORY https://github.com/yhirose/cpp-httplib
+    GIT_TAG v0.19.0
 )
-FetchContent_MakeAvailable(ftxui)
+FetchContent_MakeAvailable(cpp_httplib)
 
 find_package(SQLite3 REQUIRED)
 find_package(CURL REQUIRED)
+
+if(TARGET SQLite3::SQLite3)
+    set(BUCH_SQLITE_TARGET SQLite3::SQLite3)
+elseif(TARGET SQLite::SQLite3)
+    set(BUCH_SQLITE_TARGET SQLite::SQLite3)
+else()
+    add_library(SQLite::SQLite3 UNKNOWN IMPORTED)
+    set_target_properties(SQLite::SQLite3 PROPERTIES
+        IMPORTED_LOCATION "${SQLite3_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${SQLite3_INCLUDE_DIRS}"
+    )
+    set(BUCH_SQLITE_TARGET SQLite::SQLite3)
+endif()
 
 add_library(nlohmann_json INTERFACE)
 target_include_directories(nlohmann_json SYSTEM INTERFACE
@@ -43,11 +56,9 @@ add_executable(buch
     src/db/Database.cpp
     src/db/Migrations.cpp
     src/lookup/GoogleBooksLookup.cpp
+    src/server/HttpServer.cpp
     src/services/BookImportService.cpp
     src/services/LibraryBrowseService.cpp
-    src/tui/MainTui.cpp
-    src/tui/add_book/AddBookTui.cpp
-    src/tui/browse_books/BrowseBooksTui.cpp
     src/main.cpp
 )
 
@@ -60,10 +71,8 @@ target_compile_definitions(buch PRIVATE
 )
 target_link_libraries(buch PRIVATE
     CURL::libcurl
-    SQLite3::SQLite3
-    ftxui::component
-    ftxui::dom
-    ftxui::screen
+    ${BUCH_SQLITE_TARGET}
+    httplib::httplib
     nlohmann_json
 )
 

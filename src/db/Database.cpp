@@ -15,6 +15,8 @@ Database::Database(const std::filesystem::path& path) {
     }
 
     execute("PRAGMA foreign_keys = ON;");
+    execute("PRAGMA journal_mode = WAL;");
+    execute("PRAGMA busy_timeout = 5000;");
 }
 
 Database::~Database() {

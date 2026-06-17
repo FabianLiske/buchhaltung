@@ -1,15 +1,12 @@
 #include "db/Database.hpp"
 #include "db/Migrations.hpp"
-#include "lookup/GoogleBooksLookup.hpp"
-#include "tui/MainTui.hpp"
-#include "tui/add_book/AddBookTui.hpp"
-#include "tui/browse_books/BrowseBooksTui.hpp"
+#include "server/HttpServer.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
-#include <fstream>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
 #include <stdexcept>
@@ -28,19 +25,20 @@ void print_help() {
         << "Usage:\n"
         << "  buch --help\n"
         << "  buch --version\n"
-        << "  buch [--db <path>] init\n"
-        << "  buch [--db <path>] reset\n"
-        << "  buch lookup-isbn [isbn]\n"
-        << "  buch [--db <path>] tui\n"
+        << "  buch [server] [--db <path>] [--host <host>] [--port <port>]\n"
         << '\n'
-        << "Commands:\n"
-        << "  init          Datenbank anlegen und Migrationen ausführen\n"
-        << "  reset         Datenbank zurücksetzen\n"
-        << "  lookup-isbn   Buchdaten über Google Books abrufen und anzeigen\n"
-        << "  tui           Interaktive Buchhaltungs-Oberfläche starten\n";
+        << "Environment:\n"
+        << "  BUCH_DB_PATH       Default database path\n"
+        << "  BUCH_HOST          Default listen host, defaults to 127.0.0.1\n"
+        << "  BUCH_PORT          Default listen port, defaults to 8080\n"
+        << "  GOOGLE_BOOKS_KEY   Optional Google Books API key\n";
 }
 
 std::filesystem::path default_database_path() {
+    if (const char* database_path = std::getenv("BUCH_DB_PATH"); database_path != nullptr && std::string_view{database_path}.size() > 0) {
+        return std::filesystem::path{database_path};
+    }
+
     if (const char* xdg_data_home = std::getenv("XDG_DATA_HOME"); xdg_data_home != nullptr && std::string_view{xdg_data_home}.size() > 0) {
         return std::filesystem::path{xdg_data_home} / "buchhaltung" / "buchhaltung.sqlite";
     }
@@ -49,7 +47,7 @@ std::filesystem::path default_database_path() {
         return std::filesystem::path{home} / ".local" / "share" / "buchhaltung" / "buchhaltung.sqlite";
     }
 
-    throw std::runtime_error("Neither XDG_DATA_HOME nor HOME is set; pass --db <path> explicitly.");
+    return std::filesystem::path{"/data/buchhaltung.sqlite"};
 }
 
 void ensure_parent_directory(const std::filesystem::path& database_path) {
@@ -61,47 +59,6 @@ void ensure_parent_directory(const std::filesystem::path& database_path) {
     if (!parent.empty()) {
         std::filesystem::create_directories(parent);
     }
-}
-
-void clear_terminal_screen() {
-    std::cout << "\033[2J\033[H" << std::flush;
-}
-
-struct Args {
-    std::optional<std::filesystem::path> database_path;
-    std::optional<std::string> command;
-    std::vector<std::string> command_args;
-};
-
-Args parse_args(int argc, char** argv) {
-    Args args;
-
-    for (int index = 1; index < argc; ++index) {
-        const std::string_view arg{argv[index]};
-
-        if (arg == "--db") {
-            if (index + 1 >= argc) {
-                throw std::runtime_error("--db requires a path.");
-            }
-
-            args.database_path = std::filesystem::path{argv[++index]};
-            continue;
-        }
-
-        if (arg.starts_with("--db=")) {
-            args.database_path = std::filesystem::path{std::string{arg.substr(5)}};
-            continue;
-        }
-
-        if (!args.command.has_value()) {
-            args.command = std::string{arg};
-            continue;
-        }
-
-        args.command_args.emplace_back(arg);
-    }
-
-    return args;
 }
 
 std::string trim(std::string value) {
@@ -163,209 +120,136 @@ std::optional<std::string> read_env_file_value(std::string_view key) {
     return std::nullopt;
 }
 
-std::string google_books_api_key() {
-    if (const char* key = std::getenv("GOOGLE_BOOKS_KEY"); key != nullptr && std::string_view{key}.size() > 0) {
-        return key;
+std::string environment_or_file(std::string_view key) {
+    const std::string key_string{key};
+    if (const char* value = std::getenv(key_string.c_str()); value != nullptr && std::string_view{value}.size() > 0) {
+        return value;
     }
 
-    if (const auto key = read_env_file_value("GOOGLE_BOOKS_KEY"); key.has_value() && !key->empty()) {
-        return *key;
-    }
-
-    throw std::runtime_error("GOOGLE_BOOKS_KEY is not set. Export it or add it to .env.");
+    return read_env_file_value(key).value_or("");
 }
 
-std::string isbn_from_args_or_prompt(const std::vector<std::string>& command_args) {
-    if (command_args.size() > 1) {
-        throw std::runtime_error("lookup-isbn accepts at most one ISBN.");
-    }
-
-    if (!command_args.empty()) {
-        return command_args.front();
-    }
-
-    std::cout << "ISBN: ";
-    std::string isbn;
-    std::getline(std::cin, isbn);
-    isbn = trim(isbn);
-    if (isbn.empty()) {
-        throw std::runtime_error("ISBN must not be empty.");
-    }
-
-    return isbn;
-}
-
-void print_optional_field(std::string_view label, const std::optional<std::string>& value) {
-    std::cout << label << ": " << (value.has_value() && !value->empty() ? *value : "-") << '\n';
-}
-
-void print_optional_field(std::string_view label, const std::optional<int>& value) {
-    if (value.has_value()) {
-        std::cout << label << ": " << *value << '\n';
-    } else {
-        std::cout << label << ": -\n";
-    }
-}
-
-void print_list_field(std::string_view label, const std::vector<std::string>& values) {
-    std::cout << label << ": ";
-    if (values.empty()) {
-        std::cout << "-\n";
-        return;
-    }
-
-    for (std::size_t index = 0; index < values.size(); ++index) {
-        if (index > 0) {
-            std::cout << ", ";
+int parse_port(std::string_view value) {
+    try {
+        const int port = std::stoi(std::string{value});
+        if (port <= 0 || port > 65535) {
+            throw std::runtime_error("Port must be between 1 and 65535.");
         }
-        std::cout << values[index];
+        return port;
+    } catch (const std::invalid_argument&) {
+        throw std::runtime_error("Port must be a number.");
+    } catch (const std::out_of_range&) {
+        throw std::runtime_error("Port is out of range.");
     }
-    std::cout << '\n';
 }
 
-int run_init(const std::filesystem::path& database_path) {
-    ensure_parent_directory(database_path);
+struct Args {
+    std::filesystem::path database_path{default_database_path()};
+    std::string host{"127.0.0.1"};
+    int port{8080};
+    bool help{false};
+    bool version{false};
+};
 
-    const buch::db::Database database{database_path};
-    buch::db::apply_migrations(database);
-
-    std::cout << "Datenbank ist bereit: " << database_path << '\n';
-    return 0;
-}
-
-int run_reset(const std::filesystem::path& database_path) {
-    ensure_parent_directory(database_path);
-
-    if (database_path != ":memory:" && std::filesystem::exists(database_path)) {
-        std::filesystem::remove(database_path);
+std::string next_value(int& index, int argc, char** argv, std::string_view option) {
+    if (index + 1 >= argc) {
+        throw std::runtime_error(std::string{option} + " requires a value.");
     }
-
-    const buch::db::Database database{database_path};
-    buch::db::apply_migrations(database);
-
-    std::cout << "Datenbank wurde zurückgesetzt: " << database_path << "\n";
-    return 0;
+    return argv[++index];
 }
 
-int run_lookup_isbn(const std::vector<std::string>& command_args) {
-    const auto isbn = isbn_from_args_or_prompt(command_args);
-    const auto api_key = google_books_api_key();
-    const auto result = buch::lookup::lookup_google_books_by_isbn(isbn, api_key);
+Args parse_args(int argc, char** argv) {
+    Args args;
 
-    std::cout << "Google Books Treffer\n";
-    std::cout << "--------------------\n";
-    std::cout << "Google Volume ID: " << (result.google_volume_id.empty() ? "-" : result.google_volume_id) << '\n';
-    print_optional_field("Titel", result.title);
-    print_optional_field("Untertitel", result.subtitle);
-    print_list_field("Autoren", result.authors);
-    print_optional_field("Verlag", result.publisher);
-    print_optional_field("Erscheinungsdatum", result.published_date);
-    print_optional_field("Sprache", result.language);
-    print_optional_field("ISBN-10", result.isbn_10);
-    print_optional_field("ISBN-13", result.isbn_13);
-    print_optional_field("Seiten", result.page_count);
-    print_list_field("Kategorien", result.categories);
-    print_optional_field("Altersfreigabe", result.maturity_rating);
-    print_optional_field("Cover", result.thumbnail_url);
-    print_optional_field("Info-Link", result.info_link);
-    print_optional_field("Canonical-Link", result.canonical_link);
-    print_optional_field("Beschreibung/Snippet", result.description);
-
-    return 0;
-}
-
-int run_tui(const std::vector<std::string>& command_args, const std::filesystem::path& database_path) {
-    if (!command_args.empty()) {
-        throw std::runtime_error("tui does not accept arguments yet.");
+    if (const char* host = std::getenv("BUCH_HOST"); host != nullptr && std::string_view{host}.size() > 0) {
+        args.host = host;
     }
 
-    ensure_parent_directory(database_path);
-    while (true) {
-        clear_terminal_screen();
-        const auto action = buch::tui::run_main_tui();
+    if (const char* port = std::getenv("BUCH_PORT"); port != nullptr && std::string_view{port}.size() > 0) {
+        args.port = parse_port(port);
+    }
 
-        if (action == buch::tui::MainMenuAction::Quit) {
-            return 0;
+    for (int index = 1; index < argc; ++index) {
+        const std::string_view arg{argv[index]};
+
+        if (arg == "--help" || arg == "-h") {
+            args.help = true;
+            continue;
         }
 
-        if (action == buch::tui::MainMenuAction::AddBook) {
-            const auto api_key = google_books_api_key();
-
-            clear_terminal_screen();
-
-            const auto result = buch::tui::add_book::run(api_key, database_path);
-
-            if (result == buch::tui::add_book::Result::Quit) {
-                return 0;
-            }
-
-            if (result == buch::tui::add_book::Result::BackToMainMenu) {
-                continue;
-            }
+        if (arg == "--version" || arg == "-v") {
+            args.version = true;
+            continue;
         }
 
-        if (action == buch::tui::MainMenuAction::BrowseBooks) {
-            clear_terminal_screen();
-
-            const auto result = buch::tui::browse_books::run(database_path);
-
-            if (result == buch::tui::browse_books::Result::Quit) {
-                return 0;
-            }
-
-            if (result == buch::tui::browse_books::Result::BackToMainMenu) {
-                continue;
-            }
+        if (arg == "server") {
+            continue;
         }
+
+        if (arg == "--db") {
+            args.database_path = std::filesystem::path{next_value(index, argc, argv, arg)};
+            continue;
+        }
+
+        if (arg.starts_with("--db=")) {
+            args.database_path = std::filesystem::path{std::string{arg.substr(5)}};
+            continue;
+        }
+
+        if (arg == "--host") {
+            args.host = next_value(index, argc, argv, arg);
+            continue;
+        }
+
+        if (arg.starts_with("--host=")) {
+            args.host = std::string{arg.substr(7)};
+            continue;
+        }
+
+        if (arg == "--port") {
+            args.port = parse_port(next_value(index, argc, argv, arg));
+            continue;
+        }
+
+        if (arg.starts_with("--port=")) {
+            args.port = parse_port(arg.substr(7));
+            continue;
+        }
+
+        throw std::runtime_error("Unknown argument: " + std::string{arg});
     }
+
+    return args;
 }
 
 } // namespace
 
 int main(int argc, char** argv) {
     try {
-        if (argc > 1) {
-            const std::string_view first_arg{argv[1]};
+        const auto args = parse_args(argc, argv);
 
-            if (first_arg == "--help" || first_arg == "-h") {
-                print_help();
-                return 0;
-            }
-
-            if (first_arg == "--version" || first_arg == "-v") {
-                std::cout << "buch " << version << '\n';
-                return 0;
-            }
-        }
-
-        const Args args = parse_args(argc, argv);
-        if (!args.command.has_value()) {
+        if (args.help) {
             print_help();
             return 0;
         }
 
-        if (args.command == "init") {
-            const auto database_path = args.database_path.value_or(default_database_path());
-            return run_init(database_path);
+        if (args.version) {
+            std::cout << "buch " << version << '\n';
+            return 0;
         }
 
-        if (args.command == "reset") {
-            const auto database_path = args.database_path.value_or(default_database_path());
-            return run_reset(database_path);
-        }
+        ensure_parent_directory(args.database_path);
 
-        if (args.command == "lookup-isbn") {
-            return run_lookup_isbn(args.command_args);
-        }
+        buch::db::Database database{args.database_path};
+        buch::db::apply_migrations(database);
 
-        if (args.command == "tui") {
-            const auto database_path = args.database_path.value_or(default_database_path());
-            return run_tui(args.command_args, database_path);
-        }
+        buch::server::run_http_server(database, buch::server::ServerConfig{
+            .host = args.host,
+            .port = args.port,
+            .google_books_api_key = environment_or_file("GOOGLE_BOOKS_KEY"),
+        });
 
-        std::cerr << "Unbekannter Befehl: " << *args.command << '\n';
-        std::cerr << "Nutze 'buch --help' für Hilfe.\n";
-        return 1;
+        return 0;
     } catch (const std::exception& error) {
         std::cerr << "Fehler: " << error.what() << '\n';
         return 1;

@@ -1,36 +1,17 @@
 # buchhaltung
 
-Lokale Terminal-Anwendung zur Verwaltung einer Buechersammlung.
+Backend-Service zur Verwaltung einer Buechersammlung.
 
-## Build
+## Lokal bauen
 
 Das Repository kann auf einem nicht ausfuehrbaren SMB-Mount liegen. Deshalb
 muessen alle Build-Artefakte ausserhalb des Repositorys erzeugt werden. Der
 mitgelieferte CMake-Preset nutzt dafuer `~/build/buchhaltung`.
 
-Clean konfigurieren:
-
 ```sh
 rm -rf "$HOME/build/buchhaltung"
 cmake --preset local
-```
-
-Bauen:
-
-```sh
-cmake --build --preset local
-```
-
-Parallel mit allen CPU-Threads bauen:
-
-```sh
 cmake --build --preset local --parallel "$(nproc)"
-```
-
-Testen:
-
-```sh
-ctest --preset local
 ```
 
 Das erzeugte Programm liegt danach unter:
@@ -39,17 +20,85 @@ Das erzeugte Programm liegt danach unter:
 "$HOME/build/buchhaltung/buch"
 ```
 
-## Umgebung
-
-Die Anwendung liest `GOOGLE_BOOKS_KEY` zuerst aus der Prozessumgebung und
-danach aus einer `.env`-Datei. Beim lokalen Out-of-Repo-Build wird sowohl im
-aktuellen Arbeitsverzeichnis als auch im Source-Repository gesucht.
-
-Direkte CMake-Variante ohne Preset:
+## Server starten
 
 ```sh
-rm -rf "$HOME/build/buchhaltung"
-cmake -S . -B "$HOME/build/buchhaltung"
-cmake --build "$HOME/build/buchhaltung" --parallel "$(nproc)"
-ctest --test-dir "$HOME/build/buchhaltung" --output-on-failure
+"$HOME/build/buchhaltung/buch" server \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --db "$HOME/.local/share/buchhaltung/buchhaltung.sqlite"
+```
+
+Ohne Argumente startet `buch` ebenfalls den Server. Die Datenbank wird beim
+Start angelegt und migriert.
+
+Umgebungsvariablen:
+
+```text
+BUCH_DB_PATH       Pfad zur SQLite-Datenbank
+BUCH_HOST          Listen-Adresse, Standard: 127.0.0.1
+BUCH_PORT          Listen-Port, Standard: 8080
+GOOGLE_BOOKS_KEY   Optionaler Google-Books-API-Key fuer Lookup-Endpunkte
+```
+
+## Docker
+
+Image bauen:
+
+```sh
+docker build -t buchhaltung:local .
+```
+
+Container starten:
+
+```sh
+docker run --rm \
+  -p 8080:8080 \
+  -v buchhaltung-data:/data \
+  -e GOOGLE_BOOKS_KEY="$GOOGLE_BOOKS_KEY" \
+  buchhaltung:local
+```
+
+bzw.
+
+```sh
+docker run --rm \
+  -p 8080:8080 \
+  -v buchhaltung-data:/data \
+  --env-file .env \
+  buchhaltung:local
+```
+
+Healthcheck:
+
+```sh
+curl http://127.0.0.1:8080/healthz
+```
+
+## API
+
+Die API spricht JSON.
+
+```text
+GET    /healthz
+GET    /api/works?text=&author=&series=&reading_status=
+GET    /api/works/{id}
+GET    /api/works/{id}/editions
+PUT    /api/works/{id}
+DELETE /api/works/{id}
+
+GET    /api/editions/{isbn}
+GET    /api/editions/{isbn}/copies
+PUT    /api/editions/{isbn}
+DELETE /api/editions/{isbn}
+
+GET    /api/copies/{id}
+PUT    /api/copies/{id}
+DELETE /api/copies/{id}
+
+GET    /api/series
+GET    /api/editions/by-isbn/{isbn}
+GET    /api/work-suggestions?authors=Name1,Name2
+GET    /api/lookup/isbn/{isbn}
+POST   /api/imports
 ```
