@@ -8,6 +8,7 @@ namespace buch::db {
 namespace {
 
 constexpr int initial_schema_version = 1;
+constexpr int import_sessions_version = 2;
 
 constexpr std::string_view migration_table_sql = R"sql(
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -153,6 +154,21 @@ CREATE INDEX idx_genres_parent_genre_id ON genres(parent_genre_id);
 CREATE INDEX idx_work_genres_genre_id ON work_genres(genre_id);
 )sql";
 
+constexpr std::string_view import_sessions_sql = R"sql(
+CREATE TABLE import_sessions (
+    id TEXT PRIMARY KEY,
+    state TEXT NOT NULL,
+    isbn TEXT,
+    payload_json TEXT NOT NULL,
+    history_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at TEXT
+);
+
+CREATE INDEX idx_import_sessions_state ON import_sessions(state);
+)sql";
+
 bool has_migration(const Database& database, int version) {
     sqlite3_stmt* statement = nullptr;
     constexpr std::string_view sql = "SELECT 1 FROM schema_migrations WHERE version = ?;";
@@ -185,18 +201,28 @@ bool has_migration(const Database& database, int version) {
 void apply_migrations(const Database& database) {
     database.execute(migration_table_sql);
 
-    if (has_migration(database, initial_schema_version)) {
-        return;
+    if (!has_migration(database, initial_schema_version)) {
+        try {
+            database.execute("BEGIN;");
+            database.execute(initial_schema_sql);
+            database.execute("INSERT INTO schema_migrations (version, name) VALUES (1, 'initial schema');");
+            database.execute("COMMIT;");
+        } catch (...) {
+            database.execute("ROLLBACK;");
+            throw;
+        }
     }
 
-    try {
-        database.execute("BEGIN;");
-        database.execute(initial_schema_sql);
-        database.execute("INSERT INTO schema_migrations (version, name) VALUES (1, 'initial schema');");
-        database.execute("COMMIT;");
-    } catch (...) {
-        database.execute("ROLLBACK;");
-        throw;
+    if (!has_migration(database, import_sessions_version)) {
+        try {
+            database.execute("BEGIN;");
+            database.execute(import_sessions_sql);
+            database.execute("INSERT INTO schema_migrations (version, name) VALUES (2, 'import sessions');");
+            database.execute("COMMIT;");
+        } catch (...) {
+            database.execute("ROLLBACK;");
+            throw;
+        }
     }
 }
 

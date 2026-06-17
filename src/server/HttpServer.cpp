@@ -1,6 +1,7 @@
 #include "server/HttpServer.hpp"
 
 #include "lookup/GoogleBooksLookup.hpp"
+#include "services/ImportWorkflowService.hpp"
 #include "services/LibraryBrowseService.hpp"
 
 #include <httplib.h>
@@ -382,15 +383,64 @@ void configure_cors(httplib::Server& http) {
 
 void run_http_server(db::Database& database, const ServerConfig& config) {
     services::LibraryBrowseService browse_service{database};
+    services::ImportWorkflowService import_workflow{database, config.google_books_api_key};
 
     httplib::Server http;
     http.new_task_queue = [] {
         return new httplib::ThreadPool(1);
     };
+    http.set_keep_alive_max_count(1);
     configure_cors(http);
 
     http.Get("/healthz", route([](const httplib::Request&, httplib::Response& response) {
         send_json(response, Json{{"status", "ok"}});
+    }));
+
+    http.Post("/api/import-sessions", route([&](const httplib::Request& request, httplib::Response& response) {
+        const auto body = parse_body(request);
+        send_json(response, import_workflow.create_session(string_from_json(body, "isbn")), 201);
+    }));
+
+    http.Get(R"(/api/import-sessions/([^/]+))", route([&](const httplib::Request& request, httplib::Response& response) {
+        send_json(response, import_workflow.get_session(capture(request, 1)));
+    }));
+
+    http.Put(R"(/api/import-sessions/([^/]+)/isbn)", route([&](const httplib::Request& request, httplib::Response& response) {
+        const auto body = parse_body(request);
+        send_json(response, import_workflow.submit_isbn(capture(request, 1), string_from_json(body, "isbn")));
+    }));
+
+    http.Post(R"(/api/import-sessions/([^/]+)/select-work)", route([&](const httplib::Request& request, httplib::Response& response) {
+        send_json(response, import_workflow.select_work(capture(request, 1), parse_body(request)));
+    }));
+
+    http.Put(R"(/api/import-sessions/([^/]+)/work)", route([&](const httplib::Request& request, httplib::Response& response) {
+        send_json(response, import_workflow.update_work_draft(capture(request, 1), parse_body(request)));
+    }));
+
+    http.Put(R"(/api/import-sessions/([^/]+)/series)", route([&](const httplib::Request& request, httplib::Response& response) {
+        send_json(response, import_workflow.update_series_draft(capture(request, 1), parse_body(request)));
+    }));
+
+    http.Put(R"(/api/import-sessions/([^/]+)/edition)", route([&](const httplib::Request& request, httplib::Response& response) {
+        send_json(response, import_workflow.update_edition_draft(capture(request, 1), parse_body(request)));
+    }));
+
+    http.Put(R"(/api/import-sessions/([^/]+)/copy)", route([&](const httplib::Request& request, httplib::Response& response) {
+        send_json(response, import_workflow.update_copy_draft(capture(request, 1), parse_body(request)));
+    }));
+
+    http.Post(R"(/api/import-sessions/([^/]+)/back)", route([&](const httplib::Request& request, httplib::Response& response) {
+        send_json(response, import_workflow.back(capture(request, 1)));
+    }));
+
+    http.Post(R"(/api/import-sessions/([^/]+)/commit)", route([&](const httplib::Request& request, httplib::Response& response) {
+        send_json(response, import_workflow.commit(capture(request, 1)));
+    }));
+
+    http.Delete(R"(/api/import-sessions/([^/]+))", route([&](const httplib::Request& request, httplib::Response& response) {
+        import_workflow.remove_session(capture(request, 1));
+        send_no_content(response);
     }));
 
     http.Get("/api/works", route([&](const httplib::Request& request, httplib::Response& response) {
@@ -521,12 +571,6 @@ void run_http_server(db::Database& database, const ServerConfig& config) {
         }
         send_json(response, to_json(lookup::lookup_google_books_by_isbn(capture(request, 1), config.google_books_api_key)));
     }));
-
-    http.set_error_handler([](const httplib::Request&, httplib::Response& response) {
-        if (response.status == 404) {
-            send_error(response, 404, "Route not found.");
-        }
-    });
 
     std::cout << "buch backend listening on " << config.host << ':' << config.port << std::endl;
     if (!http.listen(config.host, config.port)) {

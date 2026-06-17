@@ -57,6 +57,8 @@ add_executable(buch
     src/db/Migrations.cpp
     src/lookup/GoogleBooksLookup.cpp
     src/server/HttpServer.cpp
+    src/services/ImportWorkflowService.cpp
+    src/services/Isbn.cpp
     src/services/LibraryBrowseService.cpp
     src/main.cpp
 )
